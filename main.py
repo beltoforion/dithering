@@ -8,7 +8,106 @@ def dither_fs2(gray_img):
 #    preprocessed_img = cv2.equalizeHist(gray_img)
 #    preprocessed_img = cv2.normalize(preprocessed_img, None, 0, 255, cv2.NORM_MINMAX)
     preprocessed_img = gray_img
-    return dither_fs2_core(preprocessed_img), preprocessed_img
+#    return dither_fs2_core(preprocessed_img), preprocessed_img
+    return dither_burkes_core(preprocessed_img), preprocessed_img
+
+@jit(nopython=True)
+def dither_burkes_core(gray_img):
+    height, width = gray_img.shape
+
+    for y in range(height):
+        for x in range(width):
+            old_pixel = gray_img[y, x]
+            new_pixel = 255 if old_pixel > 127 else 0
+            gray_img[y, x] = new_pixel
+            quant_error = old_pixel - new_pixel
+
+            # Distribute the quantization error to the neighboring pixels
+            if x + 1 < width:
+                gray_img[y, x + 1] += quant_error * 8 / 32
+            if x + 2 < width:
+                gray_img[y, x + 2] += quant_error * 4 / 32
+            if x - 2 >= 0 and y + 1 < height:
+                gray_img[y + 1, x - 2] += quant_error * 2 / 32
+            if x - 1 >= 0 and y + 1 < height:
+                gray_img[y + 1, x - 1] += quant_error * 4 / 32
+            if y + 1 < height:
+                gray_img[y + 1, x] += quant_error * 8 / 32
+            if x + 1 < width and y + 1 < height:
+                gray_img[y + 1, x + 1] += quant_error * 4 / 32
+            if x + 2 < width and y + 1 < height:
+                gray_img[y + 1, x + 2] += quant_error * 2 / 32
+
+    return np.clip(gray_img, 0, 255).astype(np.uint8)
+
+
+@jit(nopython=True)
+def dither_atkinson_core(gray_img):
+    height, width = gray_img.shape
+
+    for y in range(height):
+        for x in range(width):
+            old_pixel = gray_img[y, x]
+            new_pixel = 255 if old_pixel > 127 else 0
+            gray_img[y, x] = new_pixel
+            quant_error = old_pixel - new_pixel
+
+            # Distribute the quantization error to the neighboring pixels
+            if x + 1 < width:
+                gray_img[y, x + 1] += quant_error * 1 / 8
+            if x + 2 < width:
+                gray_img[y, x + 2] += quant_error * 1 / 8
+            if x - 1 >= 0 and y + 1 < height:
+                gray_img[y + 1, x - 1] += quant_error * 1 / 8
+            if y + 1 < height:
+                gray_img[y + 1, x] += quant_error * 1 / 8
+            if x + 1 < width and y + 1 < height:
+                gray_img[y + 1, x + 1] += quant_error * 1 / 8
+            if y + 2 < height:
+                gray_img[y + 2, x] += quant_error * 1 / 8
+
+    return np.clip(gray_img, 0, 255).astype(np.uint8)
+
+
+@jit(nopython=True)
+def dither_stucki_core(gray_img):
+    height, width = gray_img.shape
+
+    for y in range(height):
+        for x in range(width):
+            old_pixel = gray_img[y, x]
+            new_pixel = 255 if old_pixel > 127 else 0
+            gray_img[y, x] = new_pixel
+            quant_error = old_pixel - new_pixel
+
+            # Distribute the quantization error to the neighboring pixels, with rounding
+            if x + 1 < width:
+                gray_img[y, x + 1] += quant_error * 8 / 42
+            if x + 2 < width:
+                gray_img[y, x + 2] += quant_error * 4 / 42
+            if x - 2 >= 0 and y + 1 < height:
+                gray_img[y + 1, x - 2] += quant_error * 2 / 42
+            if x - 1 >= 0 and y + 1 < height:
+                gray_img[y + 1, x - 1] += quant_error * 4 / 42
+            if y + 1 < height:
+                gray_img[y + 1, x] += quant_error * 8 / 42
+            if x + 1 < width and y + 1 < height:
+                gray_img[y + 1, x + 1] += quant_error * 4 / 42
+            if x + 2 < width and y + 1 < height:
+                gray_img[y + 1, x + 2] += quant_error * 2 / 42
+            if x - 2 >= 0 and y + 2 < height:
+                gray_img[y + 2, x - 2] += quant_error * 1 / 42
+            if x - 1 >= 0 and y + 2 < height:
+                gray_img[y + 2, x - 1] += quant_error * 2 / 42
+            if y + 2 < height:
+                gray_img[y + 2, x] += quant_error * 4 / 42
+            if x + 1 < width and y + 2 < height:
+                gray_img[y + 2, x + 1] += quant_error * 2 / 42
+            if x + 2 < width and y + 2 < height:
+                gray_img[y + 2, x + 2] += quant_error * 1 / 42
+
+    return np.clip(gray_img, 0, 255).astype(np.uint8)
+
 
 @jit(nopython=True)
 def dither_fs2_core(gray_img):
@@ -140,7 +239,7 @@ def process(input_path):
         raise ValueError("Input file must be an mp4 file or a jpeg image")
 
 # Process an mp4 file
-#process("sample1.mp4")
+process("sample3.mp4")
 
 # Process a jpeg image
-process("sample1.jpg")
+#process("sample1.jpg")
