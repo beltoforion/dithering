@@ -3,6 +3,13 @@ import cv2
 import PIL
 import numpy as np
 from numba import jit
+from enum import Enum
+
+class Colors(Enum):
+    Monochrome = 1
+    ThreeColors = 2
+    EightColors = 3
+
 
 def dither_fs2(gray_img):
 #    preprocessed_img = cv2.equalizeHist(gray_img)
@@ -149,11 +156,12 @@ def dither_bayer(gray_img):
 
     return processed_img, normalized_img
 
-def dither_noise(gray_img, is_static=False):
+def dither_noise(gray_img):
     equalized_img = cv2.equalizeHist(gray_img)
     normalized_img = cv2.normalize(equalized_img, None, 0, 255, cv2.NORM_MINMAX)
 
     # Create the noise image once and reuse it
+    is_static=False
     if is_static:
         if not hasattr(dither_noise, "noise_img"):
             dither_noise.noise_img = np.zeros_like(normalized_img)
@@ -165,8 +173,57 @@ def dither_noise(gray_img, is_static=False):
     third_img = np.where(normalized_img > dither_noise.noise_img, 255, 0).astype(np.uint8)
     return third_img, normalized_img
 
-def process(input_path):
 
+def rgbify(image):
+    h, w, d = image.shape
+    nh = int(h * 2)
+    nw = int(w * 1.5)
+    
+    rgb = np.zeros((nh, nw, 3), dtype=np.uint8)
+
+    for x in range(w):
+        for y in range(h):
+            # Read rgb values of two neighboring pixels from the input image
+            b, g, r = image[y, x, :]
+
+            if (x%2 == 0):
+               ox = (int)(x*1.5)
+               rgb[2*y + 0, ox,     :] = (0, g, 0)
+               rgb[2*y + 0, ox + 1, :] = (b, 0, 0)
+               rgb[2*y + 1, ox,     :] = (0, 0, r)
+            else:
+                ox = 1+(int)(x*1.5 - 0.5)
+                rgb[2*y + 0, ox,     :] = (0,  0,  r)
+                rgb[2*y + 1, ox,     :] = (b,  0,  0)
+                rgb[2*y + 1, ox - 1, :] = (0,  g,  0)
+
+    return rgb
+
+            
+def process_image(img, colors):
+    dither_func = dither_fs2
+    if colors==Colors.Monochrome:
+        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        processed_img, grayscale_img = dither_func(gray_img)
+        return processed_img
+    elif colors==Colors.EightColors or colors==Colors.ThreeColors:
+        if colors == Colors.ThreeColors:
+            h, w, d = img.shape
+            img = cv2.resize(img, (int(w/1.5), int(h/2)))
+
+        ch_blue, ch_green, ch_red = cv2.split(img)
+        ch_blue_dit, _ = dither_func(ch_blue)
+        ch_green_dit, _ = dither_func(ch_green)
+        ch_red_dit, _ = dither_func(ch_red)
+        processed_img_col = cv2.merge((ch_blue_dit, ch_green_dit, ch_red_dit))
+
+        if colors==Colors.EightColors:
+            return processed_img_col
+        elif colors==Colors.ThreeColors:
+            rgb = rgbify(processed_img_col)
+            return rgb
+
+def process(input_path, colors):
     # Check if the input file is an mp4 file
     if input_path.endswith(".mp4"):
         output_path = os.path.splitext(input_path)[0] + "_out.mp4"
@@ -210,27 +267,11 @@ def process(input_path):
     # Check if the input file is a jpeg image
     elif input_path.endswith(".jpg") or input_path.endswith(".jpeg") or input_path.endswith(".png"):
         img = cv2.imread(input_path)
+        out_img = process_image(img, colors)
 
-        ch_blue, ch_green, ch_red = cv2.split(img)
-        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        dither_func = dither_fs2
-        ch_blue_dit, _ = dither_func(ch_blue)
-        ch_green_dit, _ = dither_func(ch_green)
-        ch_red_dit, _ = dither_func(ch_red)
-
-        output_path = os.path.splitext(input_path)[0] + "_out_col.png"
-        processed_img_col = cv2.merge((ch_blue_dit, ch_green_dit, ch_red_dit))
-        cv2.imwrite(output_path, processed_img_col)
-        cv2.imshow("Processed Image", processed_img_col)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-
-        output_path = os.path.splitext(input_path)[0] + "_out_bw.png"
-        processed_img, grayscale_img = dither_func(gray_img)
-        cv2.imwrite(output_path, processed_img.astype(int), [cv2.IMWRITE_PNG_BILEVEL, 1])
-        
-        cv2.imshow("Processed Image", processed_img)
+        output_path = os.path.splitext(input_path)[0] + "_" + str(colors) + ".png"
+        cv2.imwrite(output_path, out_img)
+        cv2.imshow("Image", out_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
@@ -239,7 +280,7 @@ def process(input_path):
         raise ValueError("Input file must be an mp4 file or a jpeg image")
 
 # Process an mp4 file
-process("sample3.mp4")
+#process("sample3.mp4")
 
 # Process a jpeg image
-#process("sample1.jpg")
+process("sample7.png", Colors.ThreeColors)
