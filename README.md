@@ -2,7 +2,7 @@
 
 This script demonstrated the use of dithering for creating images for color restricted displays.
 
-| Original Image | 1 Colors (White)|
+| Original Image | 1 Color |
 | ------------- | ------------- |
 | ![sample6](https://github.com/beltoforion/dithering/assets/2202567/fe664cd3-f39c-4adb-a92e-a3ddd35c9adf)  | ![sample6_out_bw](https://github.com/beltoforion/dithering/assets/2202567/32dea061-a285-46ac-9ccf-56b4749cf0d4)  |
 | 3 Colors (Red, Green, Blue)  | 7 Colors (Red, Green, Blue, Yellow, Cyan, Magenta, White) |
