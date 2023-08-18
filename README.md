@@ -1,4 +1,4 @@
-# Dithering Demonstration
+# Dithering - Computer Graphics for color restricted Displays
 
 This script demonstrated the use of dithering for creating images for color restricted displays.
 
