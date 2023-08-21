@@ -1,7 +1,8 @@
 import os
 import cv2
-import PIL
 import numpy as np
+import imageio
+
 from numba import jit
 from enum import Enum
 
@@ -144,17 +145,16 @@ def dither_bayer(gray_img):
     bayer_matrix = np.array([[0, 2],
                              [3, 1]])
 
-    equalized_img = cv2.equalizeHist(gray_img)
-    normalized_img = cv2.normalize(equalized_img, None, 0, 255, cv2.NORM_MINMAX)
-
-    height, width = normalized_img.shape
+    input_img = gray_img
+    height, width = input_img.shape
 
     bayer_img = np.tile(bayer_matrix, (height // 2 + 1, width // 2 + 1))
     bayer_img = bayer_img[:height, :width]
 
-    processed_img = np.where(normalized_img > bayer_img * 255 / 4, 255, 0).astype(np.uint8)
+    processed_img = np.where(input_img > bayer_img * 255 / 4, 255, 0).astype(np.uint8)
 
-    return processed_img, normalized_img
+    return processed_img, input_img
+
 
 def dither_noise(gray_img):
     equalized_img = cv2.equalizeHist(gray_img)
@@ -165,10 +165,10 @@ def dither_noise(gray_img):
     if is_static:
         if not hasattr(dither_noise, "noise_img"):
             dither_noise.noise_img = np.zeros_like(normalized_img)
-            cv2.randn(dither_noise.noise_img, 128, 50)
+            cv2.randn(dither_noise.noise_img, 150, 64)
     else:
         dither_noise.noise_img = np.zeros_like(normalized_img)
-        cv2.randn(dither_noise.noise_img, 128, 50)
+        cv2.randn(dither_noise.noise_img, 200, 20)
 
     third_img = np.where(normalized_img > dither_noise.noise_img, 255, 0).astype(np.uint8)
     return third_img, normalized_img
@@ -200,7 +200,7 @@ def rgbify(image):
     return rgb
 
             
-def process_image(img, colors):
+def process_image_impl(img, colors):
     dither_func = dither_fs2
     if colors==Colors.Monochrome:
         gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -223,64 +223,89 @@ def process_image(img, colors):
             rgb = rgbify(processed_img_col)
             return rgb
 
-def process(input_path, colors):
+
+def process_image(input_path, colors):
+    img = cv2.imread(input_path)
+
+    out_img = process_image_impl(img, colors)
+
+    output_path = os.path.splitext(input_path)[0] + "_" + str(colors) + ".png"
+    cv2.imwrite(output_path, out_img)
+    cv2.imshow("Image", out_img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+def dither_noise_demo(gray_img):
+    height, width = gray_img.shape
+
+    for y in range(height):
+        for x in range(width):
+            old_pixel = gray_img[y, x]
+#            new_pixel = 0 if old_pixel < random.randint(0, 255) else 255
+            new_pixel = 0 if old_pixel < int(np.random.normal(127, 45)) else 255
+            gray_img[y, x] = new_pixel
+
+    return gray_img
+
+
+def process_video(input_path, colors, video_scale = 1, save_gif=False):
     # Check if the input file is an mp4 file
-    if input_path.endswith(".mp4"):
-        output_path = os.path.splitext(input_path)[0] + "_out.mp4"
+    output_path = os.path.splitext(input_path)[0] + ("_out.gif" if save_gif else "_out.mp4")
 
-        # Open the video file
-        cap = cv2.VideoCapture(input_path)
+    # Open the video file
+    cap = cv2.VideoCapture(input_path)
 
-        # Get the frames per second (fps) of the video
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    # Get the frames per second (fps) of the video
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        video_scale = 1
-        width = int(width*video_scale)
-        height = int(height*video_scale)
+    width = int(width*video_scale)
+    height = int(height*video_scale)
 
-        # Create a VideoWriter object to save the processed video
+    # Create a VideoWriter object to save the processed video
+    if not save_gif:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height), isColor=False)
+    else:
+        gif_writer = imageio.get_writer(output_path, mode='I', fps=fps)
 
-        # Process each frame of the video
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+    # Process each frame of the video
+    fcount = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            frame = cv2.resize(frame, (0, 0), fx=video_scale, fy=video_scale)
-            processed_frame, grayscale_frame = dither_fs2(frame)
+        fcount += 1
+        if fcount > 100:
+            break
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        frame = cv2.resize(frame, (0, 0), fx=video_scale, fy=video_scale)
+        processed_frame, grayscale_frame = dither_fs2(frame)
+#        processed_frame, grayscale_frame = dither_noise(frame)
+
+        if save_gif:
+            gif_writer.append_data(processed_frame)
+        else:
             out.write(processed_frame)
 
-            # Display the processed frame
-            cv2.imshow("Processed Frame (Downscaled)", processed_frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+        # Display the processed frame
+        cv2.imshow("Processed Frame (Downscaled)", processed_frame)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
 
-        # Release the video capture and video writer objects
+    # Release the video capture and video writer objects
+    if save_gif:
+        gif_writer.close()
+    else:
         cap.release()
         out.release()
 
-    # Check if the input file is a jpeg image
-    elif input_path.endswith(".jpg") or input_path.endswith(".jpeg") or input_path.endswith(".png"):
-        img = cv2.imread(input_path)
-        out_img = process_image(img, colors)
-
-        output_path = os.path.splitext(input_path)[0] + "_" + str(colors) + ".png"
-        cv2.imwrite(output_path, out_img)
-        cv2.imshow("Image", out_img)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-
-    # If the input file is not an mp4 file or a jpeg image, raise an error
-    else:
-        raise ValueError("Input file must be an mp4 file or a jpeg image")
 
 # Process an mp4 file
-#process("sample3.mp4")
+process_video("sample3.mp4", Colors.Monochrome, 0.33, True)
 
-# Process a jpeg image
-process("sample7.png", Colors.ThreeColors)
+#process_image("sample6.jpg", Colors.ThreeColors)
