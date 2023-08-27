@@ -18,6 +18,8 @@ class DitherMethod(Enum):
     STUCKI = 6
     ATKINSON = 7
     BURKES = 8
+    DIFFUSION_X = 9
+    DIFFUSION_XY = 10
 
 
 class DitherProcessor(ProcessorBase):
@@ -53,6 +55,10 @@ class DitherProcessor(ProcessorBase):
             output = DitherProcessor.__dither_core_atkinson(image)
         elif (self.__method==DitherMethod.BURKES):
             output = DitherProcessor.__dither_core_burkes(image)
+        elif (self.__method==DitherMethod.DIFFUSION_X):
+            output = DitherProcessor.__dither_core_diffusion_x(image)
+        elif (self.__method==DitherMethod.DIFFUSION_XY):
+            output = DitherProcessor.__dither_core_diffusion_xy(image)
         else:
             raise NotImplementedError(f"Dither method {self.__method} is not implemented!")
         
@@ -95,6 +101,46 @@ class DitherProcessor(ProcessorBase):
 
     @staticmethod
     @jit(nopython=True)
+    def __dither_core_diffusion_x(gray_img):
+        height, width = gray_img.shape
+
+        for y in range(height):
+            quant_error = 0
+            for x in range(width):
+                old_pixel = gray_img[y, x]
+                new_pixel = 255 if old_pixel > 127 else 0
+                gray_img[y, x] = new_pixel
+                quant_error = old_pixel - new_pixel
+
+                if x + 1 < width:
+                    gray_img[y, x + 1] = min(255, max(0, gray_img[y, x + 1] + int(quant_error)))
+
+
+        return np.clip(gray_img, 0, 255).astype(np.uint8)
+
+    @staticmethod
+    @jit(nopython=True)
+    def __dither_core_diffusion_xy(gray_img):
+        height, width = gray_img.shape
+
+        for y in range(height):
+            quant_error = 0
+            for x in range(width):
+                old_pixel = gray_img[y, x]
+                new_pixel = 255 if old_pixel > 127 else 0
+                gray_img[y, x] = new_pixel
+                quant_error = old_pixel - new_pixel
+
+                if x + 1 < width:
+                    gray_img[y, x + 1] = min(255, max(0, gray_img[y, x + 1] + int(quant_error/2)))
+                if y + 1 < height:
+                    gray_img[y + 1, x] = min(255, max(0, gray_img[y + 1, x] + int(quant_error/2)))
+
+
+        return np.clip(gray_img, 0, 255).astype(np.uint8)
+
+    @staticmethod
+    @jit(nopython=True)
     def __dither_core_burkes(gray_img):
         height, width = gray_img.shape
 
@@ -127,7 +173,7 @@ class DitherProcessor(ProcessorBase):
     def __dither_core_noise(gray_img):
         # Create the noise image once and reuse it
         noise_img = np.zeros_like(gray_img)
-        cv2.randn(noise_img, 128, 40)
+        cv2.randn(noise_img, 128, 50)
 
         output_img = np.where(gray_img > noise_img, 255, 0).astype(np.uint8)
         return output_img

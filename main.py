@@ -16,7 +16,7 @@ def dither_single_image(source : Source, sink : Sink, dither_method):
     greyscale_processor.connect_input(0, source.output[0])
 
     scale_processor = ScaleProcessor()
-    scale_processor.scale = 0.33333
+    scale_processor.scale = 0.5
     scale_processor.connect_input(0, greyscale_processor.output[0])
 
     dither_processor = DitherProcessor()
@@ -36,7 +36,7 @@ def dither_single_image(source : Source, sink : Sink, dither_method):
 # Apply dithering to all color channels and combine the image back into an rgb image
 def dither_rgb(source : Source, sink : Sink, dither_method, rgb_method):
     scale_processor = ScaleProcessor()
-    scale_processor.scale = 0.2
+    scale_processor.scale = 1
     scale_processor.interpolation = cv2.INTER_NEAREST
     scale_processor.connect_input(0, source.output[0])
 
@@ -70,13 +70,13 @@ def dither_rgb(source : Source, sink : Sink, dither_method, rgb_method):
 
     return source
 
-dither_method = DitherMethod.BURKES
+dither_method = DitherMethod.DIFFUSION_XY
 rgb_method = RgbJoinMethod.COLOR
-output_format = OutputFormat.GIF
-#input_file = "sample6.jpg"
+output_format = OutputFormat.SAME_AS_INPUT
+input_file = "sample6.jpg"
 #input_file = "gradient.jpg"
 #input_file = "sample1.mp4"
-input_file = "sample3.mp4"
+#input_file = "sample3.mp4"
 
 #
 # Source and Sink setup
