@@ -18,8 +18,9 @@ class DitherMethod(Enum):
     STUCKI = 6
     ATKINSON = 7
     BURKES = 8
-    DIFFUSION_X = 9
-    DIFFUSION_XY = 10
+    SIERRA = 9
+    DIFFUSION_X = 10
+    DIFFUSION_XY = 11
 
 
 class DitherProcessor(ProcessorBase):
@@ -59,6 +60,8 @@ class DitherProcessor(ProcessorBase):
             output = DitherProcessor.__dither_core_diffusion_x(image)
         elif (self.__method==DitherMethod.DIFFUSION_XY):
             output = DitherProcessor.__dither_core_diffusion_xy(image)
+        elif (self.__method==DitherMethod.SIERRA):
+            output = DitherProcessor.__dither_core_sierra(image)
         else:
             raise NotImplementedError(f"Dither method {self.__method} is not implemented!")
         
@@ -227,6 +230,42 @@ class DitherProcessor(ProcessorBase):
                     gray_img[y + 1, x + 1] += quant_error * 1 / 8
                 if y + 2 < height:
                     gray_img[y + 2, x] += quant_error * 1 / 8
+
+        return np.clip(gray_img, 0, 255).astype(np.uint8)
+
+    @staticmethod
+    @jit(nopython=True)
+    def __dither_core_sierra(gray_img):
+        height, width = gray_img.shape
+
+        for y in range(height):
+            for x in range(width):
+                old_pixel = gray_img[y, x]
+                new_pixel = 255 if old_pixel > 127 else 0
+                gray_img[y, x] = new_pixel
+                quant_error = old_pixel - new_pixel
+
+                # Distribute the quantization error to the neighboring pixels, with rounding
+                if x + 1 < width:
+                    gray_img[y, x + 1] += quant_error * 5 / 32
+                if x + 2 < width:
+                    gray_img[y, x + 2] += quant_error * 3 / 32
+                if x - 2 >= 0 and y + 1 < height:
+                    gray_img[y + 1, x - 2] += quant_error * 2 / 32
+                if x - 1 >= 0 and y + 1 < height:
+                    gray_img[y + 1, x - 1] += quant_error * 4 / 32
+                if y + 1 < height:
+                    gray_img[y + 1, x] += quant_error * 5 / 32
+                if x + 1 < width and y + 1 < height:
+                    gray_img[y + 1, x + 1] += quant_error * 4 / 32
+                if x + 2 < width and y + 1 < height:
+                    gray_img[y + 1, x + 2] += quant_error * 3 / 32
+                if x - 1 >= 0 and y + 2 < height:
+                    gray_img[y + 2, x - 1] += quant_error * 2 / 32
+                if y + 2 < height:
+                    gray_img[y + 2, x] += quant_error * 3 / 32
+                if x + 1 < width and y + 2 < height:
+                    gray_img[y + 2, x + 1] += quant_error * 2 / 32
 
         return np.clip(gray_img, 0, 255).astype(np.uint8)
 

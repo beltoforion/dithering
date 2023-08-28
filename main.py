@@ -16,7 +16,7 @@ def dither_single_image(source : Source, sink : Sink, dither_method):
     greyscale_processor.connect_input(0, source.output[0])
 
     scale_processor = ScaleProcessor()
-    scale_processor.scale = 0.5
+    scale_processor.scale = 1
     scale_processor.connect_input(0, greyscale_processor.output[0])
 
     dither_processor = DitherProcessor()
@@ -70,10 +70,10 @@ def dither_rgb(source : Source, sink : Sink, dither_method, rgb_method):
 
     return source
 
-dither_method = DitherMethod.DIFFUSION_XY
+dither_method = DitherMethod.STUCKI
 rgb_method = RgbJoinMethod.COLOR
-output_format = OutputFormat.SAME_AS_INPUT
-input_file = "sample6.jpg"
+output_format = OutputFormat.PNG
+input_file = "sample.jpg"
 #input_file = "gradient.jpg"
 #input_file = "sample1.mp4"
 #input_file = "sample3.mp4"
@@ -83,7 +83,7 @@ input_file = "sample6.jpg"
 #
 
 source = FileSource(input_file)
-source.max_num_frames = 200
+source.max_num_frames = 100
 
 sink = VideoSink() if os.path.splitext(input_file)[1].lower()=='.mp4' else FileSink()
 sink.output_format = output_format
