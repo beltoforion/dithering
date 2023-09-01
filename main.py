@@ -11,7 +11,7 @@ from ocvl.source.video_sink import *
 from ocvl.source.file_sink import *
 
 
-def dither_single_image(source : Source, sink : Sink, dither_method):
+def dither_single_image(source : Source, sink : Sink, width : float, height : float, dither_method):
     greyscale_processor = GreyscaleProcessor()
     greyscale_processor.connect_input(0, source.output[0])
 
@@ -34,9 +34,11 @@ def dither_single_image(source : Source, sink : Sink, dither_method):
 
 
 # Apply dithering to all color channels and combine the image back into an rgb image
-def dither_rgb(source : Source, sink : Sink, dither_method, rgb_method):
+def dither_rgb(source : Source, sink : Sink, width : float, height : float, dither_method, rgb_method):
     scale_processor = ScaleProcessor()
-    scale_processor.scale = 1
+#    scale_processor.scale = 1
+    scale_processor.target_size = (width, height)
+
     scale_processor.interpolation = cv2.INTER_NEAREST
     scale_processor.connect_input(0, source.output[0])
 
@@ -71,9 +73,10 @@ def dither_rgb(source : Source, sink : Sink, dither_method, rgb_method):
     return source
 
 dither_method = DitherMethod.STUCKI
-rgb_method = RgbJoinMethod.COLOR
+rgb_method = RgbJoinMethod.THREE_COLOR
 output_format = OutputFormat.PNG
 input_file = "sample.jpg"
+target_size = (960, 540)
 #input_file = "gradient.jpg"
 #input_file = "sample1.mp4"
 #input_file = "sample3.mp4"
@@ -92,6 +95,6 @@ sink.output_format = output_format
 # Job execution
 #
 
-job = dither_rgb(source, sink, dither_method, rgb_method)
-#job = dither_single_image(source, sink, dither_method)
+#job = dither_rgb(source, sink, target_size[0], target_size[1] * (0.75 if rgb_method == RgbJoinMethod.THREE_COLOR else 1), dither_method, rgb_method)
+job = dither_single_image(source, sink, target_size[0], target_size[1], dither_method)
 job.start()
