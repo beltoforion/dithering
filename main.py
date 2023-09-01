@@ -5,26 +5,28 @@ from ocvl.processor.greyscale_processor import *
 from ocvl.processor.scale_processor import *
 from ocvl.processor.rgb_split_processor import *
 from ocvl.processor.rgb_join_processor import *
+from ocvl.processor.median_processor import *
+from ocvl.processor.normalize_processor import *
 from ocvl.helper.opencv_helper import *
 from ocvl.source.file_source import *
 from ocvl.source.video_sink import *
 from ocvl.source.file_sink import *
 
 
-def dither_single_image(source : Source, sink : Sink, width : float, height : float, dither_method):
-    greyscale_processor = GreyscaleProcessor()
+def dither_grey(source : Source, sink : Sink, width : float, height : float, dither_method):
+    last = greyscale_processor = GreyscaleProcessor()
     greyscale_processor.connect_input(0, source.output[0])
 
-    scale_processor = ScaleProcessor()
-    scale_processor.scale = 1
+    last = scale_processor = ScaleProcessor()
+    scale_processor.target_size = (width, height)
     scale_processor.connect_input(0, greyscale_processor.output[0])
 
-    dither_processor = DitherProcessor()
+    last = dither_processor = DitherProcessor()
     dither_processor.method = dither_method
     dither_processor.connect_input(0, scale_processor.output[0])
 
     # connect the sink to the last processors output
-    dither_processor.output[0].connect(sink.input[0])
+    last.output[0].connect(sink.input[0])
 
     file = source.file_path
     file_name, file_ext = os.path.splitext(file)
@@ -33,38 +35,67 @@ def dither_single_image(source : Source, sink : Sink, width : float, height : fl
     return source
 
 
-# Apply dithering to all color channels and combine the image back into an rgb image
-def dither_rgb(source : Source, sink : Sink, width : float, height : float, dither_method, rgb_method):
-    scale_processor = ScaleProcessor()
-#    scale_processor.scale = 1
-    scale_processor.target_size = (width, height)
+def xxx(source : Source, sink : Sink, width : float, height : float, dither_method):
+    proc = []
+    
+    last = greyscale_processor = GreyscaleProcessor()
+    greyscale_processor.connect_input(0, source.output[0])
 
+    last = scale_processor = ScaleProcessor()
+    scale_processor.scale = 1
+    scale_processor.connect_input(0, greyscale_processor.output[0])
+
+    last = normalize_processor = NormalizeProcessor()
+    normalize_processor.connect_input(0, scale_processor.output[0])
+
+    last = median_processor = MedianProcessor()
+    median_processor.size = 3
+    median_processor.connect_input(0, normalize_processor.output[0])
+
+    last = dither_processor = DitherProcessor()
+    dither_processor.method = dither_method
+    dither_processor.connect_input(0, median_processor.output[0])
+
+    last.output[0].connect(sink.input[0])
+
+    file = source.file_path
+    file_name, file_ext = os.path.splitext(file)
+    sink.output_path = f"{file_name}_{dither_method.name}_monochrome{file_ext}"
+
+    return source
+
+
+def dither_rgb(source : Source, sink : Sink, width : float, height : float, dither_method, rgb_method):
+    """ Apply dithering to all color channels and combine the image back into an rgb image.
+    """
+    last = scale_processor = ScaleProcessor()
+    scale_processor.target_size = (width, height)
     scale_processor.interpolation = cv2.INTER_NEAREST
     scale_processor.connect_input(0, source.output[0])
 
-    rgb_split_processor = RgbSplitProcessor()
+    last = rgb_split_processor = RgbSplitProcessor()
     rgb_split_processor.connect_input(0, scale_processor.output[0])
 
-    dither_blue = DitherProcessor()
+    last = dither_blue = DitherProcessor()
     dither_blue.method = dither_method
     dither_blue.connect_input(0, rgb_split_processor.output[0])
 
-    dither_green = DitherProcessor()
+    last = dither_green = DitherProcessor()
     dither_green.method = dither_method
     dither_green.connect_input(0, rgb_split_processor.output[1])
 
-    dither_red = DitherProcessor()
+    last = dither_red = DitherProcessor()
     dither_red.method = dither_method
     dither_red.connect_input(0, rgb_split_processor.output[2])
 
-    rgb_join_processor = RbgJoinProcessor()
+    last = rgb_join_processor = RbgJoinProcessor()
     rgb_join_processor.method = rgb_method
     rgb_join_processor.connect_input(0, dither_blue.output[0])
     rgb_join_processor.connect_input(1, dither_green.output[0])
     rgb_join_processor.connect_input(2, dither_red.output[0])
 
     # connect the sink to the last processors output
-    rgb_join_processor.output[0].connect(sink.input[0])
+    last.output[0].connect(sink.input[0])
 
     file = source.file_path
     file_name, file_ext = os.path.splitext(file)
@@ -96,5 +127,6 @@ sink.output_format = output_format
 #
 
 #job = dither_rgb(source, sink, target_size[0], target_size[1] * (0.75 if rgb_method == RgbJoinMethod.THREE_COLOR else 1), dither_method, rgb_method)
-job = dither_single_image(source, sink, target_size[0], target_size[1], dither_method)
+job = dither_grey(source, sink, target_size[0], target_size[1], dither_method)
+#job = xxx(source, sink, target_size[0], target_size[1], dither_method)
 job.start()
