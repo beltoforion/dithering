@@ -13,16 +13,17 @@ from ocvl.source.video_sink import *
 from ocvl.source.file_sink import *
 
 
-def dither_grey(source : Source, sink : Sink, width : float, height : float, dither_method):
+def dither_grey(source : Source, sink : Sink, target_size : (float, float), levels : [], dither_method):
     last = greyscale_processor = GreyscaleProcessor()
     greyscale_processor.connect_input(0, source.output[0])
 
     last = scale_processor = ScaleProcessor()
-    scale_processor.target_size = (width, height)
+    scale_processor.target_size = target_size
     scale_processor.connect_input(0, greyscale_processor.output[0])
 
     last = dither_processor = DitherProcessor()
     dither_processor.method = dither_method
+    dither_processor.levels = levels
     dither_processor.connect_input(0, scale_processor.output[0])
 
     # connect the sink to the last processors output
@@ -35,14 +36,14 @@ def dither_grey(source : Source, sink : Sink, width : float, height : float, dit
     return source
 
 
-def xxx(source : Source, sink : Sink, width : float, height : float, dither_method):
+def xxx(source : Source, sink : Sink, target_size : (float, float), dither_method):
     proc = []
     
     last = greyscale_processor = GreyscaleProcessor()
     greyscale_processor.connect_input(0, source.output[0])
 
     last = scale_processor = ScaleProcessor()
-    scale_processor.scale = 1
+    scale_processor.target_size = target_size
     scale_processor.connect_input(0, greyscale_processor.output[0])
 
     last = normalize_processor = NormalizeProcessor()
@@ -65,11 +66,11 @@ def xxx(source : Source, sink : Sink, width : float, height : float, dither_meth
     return source
 
 
-def dither_rgb(source : Source, sink : Sink, width : float, height : float, dither_method, rgb_method):
+def dither_rgb(source : Source, sink : Sink, target_size : (float, float), levels : [], dither_method, rgb_method):
     """ Apply dithering to all color channels and combine the image back into an rgb image.
     """
     last = scale_processor = ScaleProcessor()
-    scale_processor.target_size = (width, height)
+    scale_processor.target_size = target_size
     scale_processor.interpolation = cv2.INTER_NEAREST
     scale_processor.connect_input(0, source.output[0])
 
@@ -78,14 +79,17 @@ def dither_rgb(source : Source, sink : Sink, width : float, height : float, dith
 
     last = dither_blue = DitherProcessor()
     dither_blue.method = dither_method
+    dither_blue.levels = levels
     dither_blue.connect_input(0, rgb_split_processor.output[0])
 
     last = dither_green = DitherProcessor()
     dither_green.method = dither_method
+    dither_green.levels = levels
     dither_green.connect_input(0, rgb_split_processor.output[1])
 
     last = dither_red = DitherProcessor()
     dither_red.method = dither_method
+    dither_red.levels = levels
     dither_red.connect_input(0, rgb_split_processor.output[2])
 
     last = rgb_join_processor = RbgJoinProcessor()
@@ -103,9 +107,12 @@ def dither_rgb(source : Source, sink : Sink, width : float, height : float, dith
 
     return source
 
-dither_method = DitherMethod.STUCKI
+
+dither_method = DitherMethod.SIERRA
 rgb_method = RgbJoinMethod.THREE_COLOR
 output_format = OutputFormat.PNG
+num_levels = 3
+levels = [int(i * 255 / (num_levels - 1)) for i in range(num_levels)]
 input_file = "sample.jpg"
 target_size = (960, 540)
 #input_file = "gradient.jpg"
@@ -125,8 +132,7 @@ sink.output_format = output_format
 #
 # Job execution
 #
-
-#job = dither_rgb(source, sink, target_size[0], target_size[1] * (0.75 if rgb_method == RgbJoinMethod.THREE_COLOR else 1), dither_method, rgb_method)
-job = dither_grey(source, sink, target_size[0], target_size[1], dither_method)
+#job = dither_rgb(source, sink, (target_size[0], target_size[1] * (0.75 if rgb_method == RgbJoinMethod.THREE_COLOR else 1)), levels, dither_method, rgb_method)
+job = dither_grey(source, sink, target_size, levels, dither_method)
 #job = xxx(source, sink, target_size[0], target_size[1], dither_method)
 job.start()
